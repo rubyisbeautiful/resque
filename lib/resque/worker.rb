@@ -164,7 +164,7 @@ module Resque
       startup
 
       count = 0
-      Benchmark.measure("a chunk of #{ENV['TUNING_COUNT']} jobs") do
+      benchmark_report = Benchmark.measure("a chunk of #{ENV['TUNING_COUNT']} jobs") do
         loop do
           break if shutdown?
           break if count == ENV['TUNING_COUNT'].to_i
@@ -210,6 +210,11 @@ module Resque
             sleep interval
           end
         end
+      end
+
+      Resque.logger.fatal benchmark_report
+      File.open("#{ENV['HOME']}/resque_benchmark_report_#{Time.now.to_s(:string)}", 'w') do |file|
+        file.puts benchmark_report
       end
 
       unregister_worker
