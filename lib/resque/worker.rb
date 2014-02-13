@@ -214,7 +214,7 @@ module Resque
       end
 
       Resque.logger.fatal benchmark_report
-      File.open("#{ENV['HOME']}/resque_benchmark_report_#{Time.now.to_s(:string)}", 'w') do |file|
+      File.open("#{ENV['HOME']}/resque_benchmark_report_#{Time.now.to_s(:number)}", 'w') do |file|
         file.puts benchmark_report
       end
 
