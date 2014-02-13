@@ -163,8 +163,12 @@ module Resque
       $0 = "resque: Starting"
       startup
 
+      count = 0
+
       loop do
         break if shutdown?
+        break if count == ENV['TUNING_COUNT'].to_i
+        count = redis.incr 'tuning'
 
         if not paused? and job = reserve
           log "got: #{job.inspect}"
