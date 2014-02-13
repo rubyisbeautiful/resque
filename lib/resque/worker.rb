@@ -164,50 +164,51 @@ module Resque
       startup
 
       count = 0
+      Benchmark.measure("a chunk of #{ENV['TUNING_COUNT']} jobs") do
+        loop do
+          break if shutdown?
+          break if count == ENV['TUNING_COUNT'].to_i
+          count = redis.incr 'tuning'
 
-      loop do
-        break if shutdown?
-        break if count == ENV['TUNING_COUNT'].to_i
-        count = redis.incr 'tuning'
+          if not paused? and job = reserve
+            log "got: #{job.inspect}"
+            job.worker = self
+            working_on job
 
-        if not paused? and job = reserve
-          log "got: #{job.inspect}"
-          job.worker = self
-          working_on job
+            procline "Processing #{job.queue} since #{Time.now.to_i} [#{job.payload_class_name}]"
+            if @child = fork(job)
+              srand # Reseeding
+              procline "Forked #{@child} at #{Time.now.to_i}"
+              begin
+                Process.waitpid(@child)
+              rescue SystemCallError
+                nil
+              end
+              job.fail(DirtyExit.new($?.to_s)) if $?.signaled?
+            else
+              unregister_signal_handlers if will_fork? && term_child
+              begin
 
-          procline "Processing #{job.queue} since #{Time.now.to_i} [#{job.payload_class_name}]"
-          if @child = fork(job)
-            srand # Reseeding
-            procline "Forked #{@child} at #{Time.now.to_i}"
-            begin
-              Process.waitpid(@child)
-            rescue SystemCallError
-              nil
+                reconnect
+                perform(job, &block)
+
+              rescue Exception => exception
+                report_failed_job(job,exception)
+              end
+
+              if will_fork?
+                run_at_exit_hooks ? exit : exit!
+              end
             end
-            job.fail(DirtyExit.new($?.to_s)) if $?.signaled?
+
+            done_working
+            @child = nil
           else
-            unregister_signal_handlers if will_fork? && term_child
-            begin
-
-              reconnect
-              perform(job, &block)
-
-            rescue Exception => exception
-              report_failed_job(job,exception)
-            end
-
-            if will_fork?
-              run_at_exit_hooks ? exit : exit!
-            end
+            break if interval.zero?
+            log! "Sleeping for #{interval} seconds"
+            procline paused? ? "Paused" : "Waiting for #{@queues.join(',')}"
+            sleep interval
           end
-
-          done_working
-          @child = nil
-        else
-          break if interval.zero?
-          log! "Sleeping for #{interval} seconds"
-          procline paused? ? "Paused" : "Waiting for #{@queues.join(',')}"
-          sleep interval
         end
       end
 
