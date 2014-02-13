@@ -164,10 +164,11 @@ module Resque
       startup
 
       count = 0
+      redis.set 'tuning', 0
       benchmark_report = Benchmark.measure("a chunk of #{ENV['TUNING_COUNT']} jobs") do
         loop do
           break if shutdown?
-          break if count == ENV['TUNING_COUNT'].to_i
+          break if count.to_i == ENV['TUNING_COUNT'].to_i
           count = redis.incr 'tuning'
 
           if not paused? and job = reserve
