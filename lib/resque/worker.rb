@@ -163,13 +163,14 @@ module Resque
       $0 = "resque: Starting"
       startup
 
-      count = 0
-      redis.set 'tuning', 0
-      benchmark_report = Benchmark.measure("a chunk of #{ENV['TUNING_COUNT']} jobs") do
+      #count = redis.get('tuning')
+      #redis.set 'tuning', 0
+      benchmark_report = Benchmark.measure do
         loop do
           break if shutdown?
-          break if count.to_i == ENV['TUNING_COUNT'].to_i
-          count = redis.incr 'tuning'
+          count = redis.decr 'tuning'
+          break if count.to_i == 0
+
 
           if not paused? and job = reserve
             log "got: #{job.inspect}"
@@ -214,7 +215,9 @@ module Resque
       end
 
       Resque.logger.fatal benchmark_report
-      File.open("#{ENV['HOME']}/resque_benchmark_report_#{Time.now.to_s(:number)}", 'w') do |file|
+      bench_filename = ENV['BENCH_REPORT_FILE'] || 'resque_benchmark_report'
+      bench_dir = ENV['BENCH_REPORT_DIR'] || ENV['HOME']
+      File.open("#{bench_dir}/#{bench_filename}_#{Time.now.to_s(:number)}", 'w') do |file|
         file.puts benchmark_report
       end
 
