@@ -168,11 +168,12 @@ module Resque
       benchmark_report = Benchmark.measure do
         loop do
           break if shutdown?
-          count = redis.decr 'tuning'
+          count = redis.get 'tuning'
           break if count.to_i == 0
 
 
           if not paused? and job = reserve
+            redis.decr 'tuning'
             log "got: #{job.inspect}"
             job.worker = self
             working_on job
